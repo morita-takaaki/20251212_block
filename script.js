@@ -1,288 +1,490 @@
-// --- Canvas設定 ---
-const canvas = document.getElementById("breakout-canvas");
+/**
+ * ＭＯＲＩＴＡのブロック崩しゲーム
+ * - ← → でラケット（パドル）移動
+ * - ボールを落とすとNG +1（10回でゲーム終了）
+ * - ブロックはカラフル
+ * - 速度3段階（高速/並み/遅い）※START前に選択
+ * - オフラインOK（外部ライブラリなし）
+ */
+
+"use strict";
+
+/** ===== DOM ===== */
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-const canvasWidth = canvas.width;
-const canvasHeight = canvas.height;
 
-// --- DOM要素 ---
-const SCORE_SPAN = document.getElementById('score');
-const NG_COUNT_SPAN = document.getElementById('ng-count');
-const MESSAGE_P = document.getElementById('game-message');
-const START_BUTTON = document.getElementById('start-button');
+const scoreEl = document.getElementById("score");
+const leftEl = document.getElementById("left");
+const ngEl = document.getElementById("ng");
+const statusEl = document.getElementById("status");
+const speedLabelEl = document.getElementById("speedLabel");
 
-// --- ゲーム定数 ---
-const MAX_NG = 10;
+const speedSelect = document.getElementById("speed");
+const startBtn = document.getElementById("startBtn");
+const resetBtn = document.getElementById("resetBtn");
 
-// --- 球の設定 ---
-const ballRadius = 6;
-let x = canvasWidth / 2;
-let y = canvasHeight - 30;
-let dx = 1.7; // **変更**: x方向の移動速度の初期値 (並み: 1.7)
-let dy = -1.7; // **変更**: y方向の移動速度の初期値 (並み: -1.7)
+const overlay = document.getElementById("overlay");
+const overlayTitle = document.getElementById("overlayTitle");
+const overlayText = document.getElementById("overlayText");
 
-// --- ラケットの設定 ---
-const paddleHeight = 8;
-const paddleWidth = 75;
-let paddleX = (canvasWidth - paddleWidth) / 2;
-let rightPressed = false;
-let leftPressed = false;
+/** ===== 速度（1フレームあたりの移動量に反映） ===== */
+const SPEED = {
+  fast: 1.25,
+  normal: 1.0,
+  slow: 0.78,
+};
 
-// --- ブロックの設定 ---
-const brickRowCount = 5;
-const brickColumnCount = 8;
-const brickWidth = 50;
-const brickHeight = 10;
-const brickPadding = 5;
-const brickOffsetTop = 30;
-const brickOffsetLeft = 15;
+/** ===== 背景 ===== */
+const GRID_LINE = "rgba(124,255,225,.06)";
 
-let bricks = []; 
-
-// --- ゲーム変数 ---
+/** ===== 状態 ===== */
 let score = 0;
 let ngCount = 0;
-let gameLoopInterval = null;
 let isPlaying = false;
-let initialSpeed = 1.7; // **変更**: 初期速度（並み）を1.7に設定
 
-// --- イベントリスナー ---
+let speedMul = SPEED.normal;
 
-document.addEventListener("keydown", keyDownHandler, false);
-document.addEventListener("keyup", keyUpHandler, false);
-START_BUTTON.addEventListener('click', startGame);
+/** パドル */
+const paddle = {
+  w: 120,
+  h: 16,
+  x: 0,
+  y: 0,
+  vx: 0,
+  maxV: 8,
+};
 
-function keyDownHandler(e) {
-    if (e.key === "Right" || e.key === "ArrowRight") {
-        rightPressed = true;
-    } else if (e.key === "Left" || e.key === "ArrowLeft") {
-        leftPressed = true;
+/** ボール */
+const ball = {
+  r: 10,
+  x: 0,
+  y: 0,
+  vx: 4,
+  vy: -4,
+};
+
+/** ブロック */
+let blocks = [];
+const BLOCK = {
+  rows: 6,
+  cols: 10,
+  w: 64,
+  h: 22,
+  gap: 10,
+  top: 40,
+  left: 30,
+};
+
+/** ループ */
+let rafId = null;
+let lastTime = 0;
+
+/** バッジ画像（任意） */
+const badgeImg = new Image();
+badgeImg.src = "images/morita_badge.svg";
+let badgeReady = false;
+badgeImg.onload = () => { badgeReady = true; };
+
+/** 入力 */
+const keys = { left: false, right: false };
+
+/** ===== 初期化 ===== */
+function init() {
+  score = 0;
+  ngCount = 0;
+  isPlaying = false;
+
+  setSpeed(speedSelect.value);
+
+  setupPaddle();
+  setupBall(true);
+  setupBlocks();
+
+  stopLoop();
+  showOverlay("READY", "STARTで開始（←→で操作）", true);
+  statusEl.textContent = "待機中";
+  startBtn.disabled = false;
+  speedSelect.disabled = false;
+
+  updateUI();
+  draw(); // 1枚描いておく
+}
+
+function setSpeed(mode) {
+  speedMul = SPEED[mode] ?? SPEED.normal;
+  speedLabelEl.textContent = (mode === "fast") ? "高速" : (mode === "slow") ? "遅い" : "並み";
+}
+
+function setupPaddle() {
+  paddle.x = (canvas.width - paddle.w) / 2;
+  paddle.y = canvas.height - 36;
+  paddle.vx = 0;
+}
+
+function setupBall(centerOnPaddle) {
+  if (centerOnPaddle) {
+    ball.x = paddle.x + paddle.w / 2;
+    ball.y = paddle.y - ball.r - 2;
+  } else {
+    // そのまま
+  }
+
+  // 速度は倍率で調整（fast/normal/slow）
+  const base = 4 * speedMul;
+  ball.vx = base * (Math.random() < 0.5 ? -1 : 1);
+  ball.vy = -base;
+}
+
+function setupBlocks() {
+  blocks = [];
+  const palette = makeColorPalette(BLOCK.rows, BLOCK.cols);
+
+  for (let r = 0; r < BLOCK.rows; r++) {
+    for (let c = 0; c < BLOCK.cols; c++) {
+      const x = BLOCK.left + c * (BLOCK.w + BLOCK.gap);
+      const y = BLOCK.top + r * (BLOCK.h + BLOCK.gap);
+
+      blocks.push({
+        x, y,
+        w: BLOCK.w, h: BLOCK.h,
+        alive: true,
+        color: palette[r][c],
+        hp: 1,
+      });
     }
+  }
 }
 
-function keyUpHandler(e) {
-    if (e.key === "Right" || e.key === "ArrowRight") {
-        rightPressed = false;
-    } else if (e.key === "Left" || e.key === "ArrowLeft") {
-        leftPressed = false;
+function makeColorPalette(rows, cols) {
+  // HSLでカラフルに（行×列で少しずつ色相をズラす）
+  const pal = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      const hue = (r * 34 + c * 12) % 360;
+      row.push(`hsl(${hue} 95% 60%)`);
     }
+    pal.push(row);
+  }
+  return pal;
 }
 
-// --- 初期化処理 ---
-
-function initBricks() {
-    bricks = [];
-    for (let c = 0; c < brickColumnCount; c++) {
-        bricks[c] = [];
-        const randomColor = getRandomColor(); 
-        for (let r = 0; r < brickRowCount; r++) {
-            bricks[c][r] = { x: 0, y: 0, status: 1, color: randomColor };
-        }
-    }
-}
-
-function getRandomColor() {
-    const letters = '0123456789ABCDEF';
-    let color = '#';
-    for (let i = 0; i < 6; i++) {
-        color += letters[Math.floor(Math.random() * 16)];
-    }
-    return color;
-}
-
-function initializeGame() {
-    // 速度設定の取得
-    const selectedSpeed = document.querySelector('input[name="speed"]:checked');
-    initialSpeed = parseFloat(selectedSpeed.value); // **HTMLの新しい値を読み込む**
-    
-    score = 0;
-    ngCount = 0;
-    SCORE_SPAN.textContent = score;
-    NG_COUNT_SPAN.textContent = ngCount;
-    MESSAGE_P.textContent = "ゲーム中...";
-    MESSAGE_P.classList.remove('game-over');
-    
-    initBricks();
-    resetBallAndPaddle();
-}
-
-function resetBallAndPaddle() {
-    x = canvasWidth / 2;
-    y = canvasHeight - 30;
-    
-    // Y方向の速度は常に負（上向き）
-    dy = -initialSpeed;
-    // X方向はランダムに左右どちらかに振る
-    dx = (Math.random() < 0.5 ? 1 : -1) * initialSpeed * 0.7; 
-    
-    paddleX = (canvasWidth - paddleWidth) / 2;
-}
-
+/** ===== スタート / リセット ===== */
 function startGame() {
-    if (gameLoopInterval) {
-        clearInterval(gameLoopInterval);
-    }
-    initializeGame();
-    isPlaying = true;
-    gameLoopInterval = setInterval(draw, 10); // 10ms (100FPS相当)で描画・更新
+  score = 0;
+  ngCount = 0;
+  isPlaying = true;
+
+  setupPaddle();
+  setupBall(true);
+  setupBlocks();
+
+  overlay.hidden = true;
+  statusEl.textContent = "プレイ中";
+  startBtn.disabled = true;
+  speedSelect.disabled = true;
+
+  startLoop();
+  updateUI();
 }
 
-// --- 描画関数 (省略) ---
-// drawBall, drawPaddle, drawBricks は変更なし
-
-// --- 衝突判定 ---
-
-function collisionDetection() {
-    for (let c = 0; c < brickColumnCount; c++) {
-        for (let r = 0; r < brickRowCount; r++) {
-            const b = bricks[c][r];
-            if (b.status === 1) {
-                if (x + ballRadius > b.x && x - ballRadius < b.x + brickWidth && 
-                    y + ballRadius > b.y && y - ballRadius < b.y + brickHeight) 
-                {
-                    dy = -dy; 
-                    b.status = 0; 
-                    score++;
-                    SCORE_SPAN.textContent = score;
-
-                    if (score === brickRowCount * brickColumnCount) {
-                        gameOver(true);
-                    }
-                }
-            }
-        }
-    }
+function resetAll() {
+  init();
 }
 
-// --- メイン描画ループ ---
+/** ===== ループ ===== */
+function startLoop() {
+  stopLoop();
+  lastTime = performance.now();
+  rafId = requestAnimationFrame(loop);
+}
 
+function stopLoop() {
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
+
+function loop(now) {
+  const dt = Math.min(0.03, (now - lastTime) / 1000); // 秒（暴走防止）
+  lastTime = now;
+
+  update(dt);
+  draw();
+
+  if (isPlaying) {
+    rafId = requestAnimationFrame(loop);
+  }
+}
+
+/** ===== 更新 ===== */
+function update(dt) {
+  if (!isPlaying) return;
+
+  // 入力でパドル速度
+  paddle.vx = 0;
+  if (keys.left) paddle.vx = -paddle.maxV;
+  if (keys.right) paddle.vx = paddle.maxV;
+
+  // パドル移動
+  paddle.x += paddle.vx;
+  paddle.x = clamp(paddle.x, 0, canvas.width - paddle.w);
+
+  // ボール移動（dtはFPS差を吸収）
+  ball.x += ball.vx * (dt * 60);
+  ball.y += ball.vy * (dt * 60);
+
+  // 壁反射（左右）
+  if (ball.x - ball.r < 0) {
+    ball.x = ball.r;
+    ball.vx *= -1;
+  } else if (ball.x + ball.r > canvas.width) {
+    ball.x = canvas.width - ball.r;
+    ball.vx *= -1;
+  }
+
+  // 天井反射
+  if (ball.y - ball.r < 0) {
+    ball.y = ball.r;
+    ball.vy *= -1;
+  }
+
+  // 落下（下に出たらNG）
+  if (ball.y - ball.r > canvas.height) {
+    onNG();
+    return;
+  }
+
+  // パドル衝突
+  if (circleRectHit(ball.x, ball.y, ball.r, paddle.x, paddle.y, paddle.w, paddle.h) && ball.vy > 0) {
+    // 当たった位置で反射角を変える（端なら斜めが強くなる）
+    const hitPos = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2); // -1～+1
+    const base = 4 * speedMul;
+
+    ball.vx = base * hitPos * 1.4; // 横方向
+    ball.vy = -Math.max(2.8, Math.abs(base)); // 上方向へ
+
+    // 少しだけ加速して気持ちよく（上限あり）
+    const max = 7.2 * speedMul;
+    ball.vx = clamp(ball.vx, -max, max);
+    ball.vy = -clamp(Math.abs(ball.vy), 2.8, max);
+  }
+
+  // ブロック衝突
+  for (const b of blocks) {
+    if (!b.alive) continue;
+
+    if (circleRectHit(ball.x, ball.y, ball.r, b.x, b.y, b.w, b.h)) {
+      b.alive = false;
+      score += 10;
+
+      // どっち向きに反射させるか：簡易に「上下優先」で判定
+      const prevX = ball.x - ball.vx * (dt * 60);
+      const prevY = ball.y - ball.vy * (dt * 60);
+
+      const hitFromLeft = prevX <= b.x - ball.r;
+      const hitFromRight = prevX >= b.x + b.w + ball.r;
+      const hitFromTop = prevY <= b.y - ball.r;
+      const hitFromBottom = prevY >= b.y + b.h + ball.r;
+
+      // 横から当たったっぽい
+      if (hitFromLeft || hitFromRight) {
+        ball.vx *= -1;
+      } else if (hitFromTop || hitFromBottom) {
+        ball.vy *= -1;
+      } else {
+        // 不明ならY反転
+        ball.vy *= -1;
+      }
+
+      // 1回で1ブロックだけ処理（連続破壊を防ぐ）
+      break;
+    }
+  }
+
+  // クリア判定
+  if (blocks.every(b => !b.alive)) {
+    gameClear();
+  }
+
+  updateUI();
+}
+
+function onNG() {
+  ngCount += 1;
+  updateUI();
+
+  if (ngCount >= 10) {
+    gameOver();
+    return;
+  }
+
+  // 次の球：パドル上に戻して再開（プレイ継続）
+  setupPaddle();
+  setupBall(true);
+
+  flashOverlay(`NG！ (${ngCount}/10)`, "ボールをリセットして続行…", 650);
+}
+
+/** ===== 描画 ===== */
 function draw() {
-    if (!isPlaying) return;
+  // 背景
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#070b16";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  drawBackgroundGrid();
 
-    drawBricks();
-    drawBall();
-    drawPaddle();
-    collisionDetection();
+  // ブロック
+  drawBlocks();
 
-    // 1. 壁との衝突
-    if (x + dx > canvasWidth - ballRadius || x + dx < ballRadius) {
-        dx = -dx; 
-    }
-    if (y + dy < ballRadius) {
-        dy = -dy; 
-    } 
-    
-    // 2. ラケットとの衝突 (下側の衝突)
-    else if (y + dy > canvasHeight - ballRadius - paddleHeight) {
-        if (x > paddleX && x < paddleX + paddleWidth) {
-            const relativeIntersectX = (x - (paddleX + paddleWidth / 2));
-            dx = relativeIntersectX * 0.15; // 角度調整の係数は維持
-            dy = -dy; 
-        } 
-        // 3. NG判定 (球が画面下部に落ちた)
-        else {
-            handleNG();
-            return;
-        }
-    }
+  // パドル
+  drawPaddle();
 
-    // 4. ラケットの移動 (速度は変更なし)
-    if (rightPressed && paddleX < canvasWidth - paddleWidth) {
-        paddleX += 7;
-    } else if (leftPressed && paddleX > 0) {
-        paddleX -= 7;
-    }
+  // ボール
+  drawBall();
 
-    // 5. 球の移動
-    x += dx;
-    y += dy;
+  // フレーム
+  drawFrame();
+
+  // 上部に小さくバッジ（任意演出）
+  if (badgeReady) {
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    ctx.drawImage(badgeImg, canvas.width - 86, 10, 72, 72);
+    ctx.restore();
+  }
 }
 
-// --- NG/ゲームオーバー処理 (省略) ---
-// handleNG, gameOver は変更なし
-// ...
+function drawBackgroundGrid() {
+  ctx.strokeStyle = GRID_LINE;
+  ctx.lineWidth = 1;
+  const step = 24;
 
-// drawBall, drawPaddle, drawBricks, handleNG, gameOver, keyDownHandler, keyUpHandler, getRandomColor, isSnake, collisionDetection の定義が続く
-
-// 省略された関数の定義を補完します。
-// （前回提供したコードと実質的な変更はありませんが、完全なコードを提供するために再度記述します。）
-
-function drawBall() {
+  for (let x = 0; x <= canvas.width; x += step) {
     ctx.beginPath();
-    ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
-    ctx.fillStyle = "#FFFFFF"; 
-    ctx.fill();
-    ctx.closePath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += step) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+
+function drawBlocks() {
+  for (const b of blocks) {
+    if (!b.alive) continue;
+
+    // グロー
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = b.color;
+    roundRectFill(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 10);
+    ctx.restore();
+
+    // 本体
+    ctx.fillStyle = b.color;
+    roundRectFill(b.x, b.y, b.w, b.h, 10);
+
+    // ハイライト
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#ffffff";
+    roundRectFill(b.x + 6, b.y + 5, b.w - 12, 6, 6);
+    ctx.restore();
+
+    // 枠
+    ctx.strokeStyle = "rgba(255,255,255,.18)";
+    ctx.lineWidth = 2;
+    roundRectStroke(b.x, b.y, b.w, b.h, 10);
+  }
 }
 
 function drawPaddle() {
+  // 「MORITAラケット」：丸角＋ストライプでユニークに
+  const x = paddle.x, y = paddle.y, w = paddle.w, h = paddle.h;
+
+  // 影
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = "#000";
+  roundRectFill(x + 2, y + 3, w, h, 12);
+  ctx.restore();
+
+  // 本体グラデ風
+  const grad = ctx.createLinearGradient(x, y, x + w, y);
+  grad.addColorStop(0, "#2ef2c1");
+  grad.addColorStop(1, "#2b63ff");
+  ctx.fillStyle = grad;
+  roundRectFill(x, y, w, h, 12);
+
+  // ストライプ
+  ctx.save();
+  ctx.globalAlpha = 0.20;
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  for (let i = 8; i < w; i += 16) {
     ctx.beginPath();
-    ctx.rect(paddleX, canvasHeight - paddleHeight, paddleWidth, paddleHeight);
-    ctx.fillStyle = "#0095DD"; 
-    ctx.fill();
-    ctx.closePath();
+    ctx.moveTo(x + i, y + 3);
+    ctx.lineTo(x + i - 10, y + h - 3);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 枠
+  ctx.strokeStyle = "rgba(255,255,255,.22)";
+  ctx.lineWidth = 2;
+  roundRectStroke(x, y, w, h, 12);
 }
 
-function drawBricks() {
-    for (let c = 0; c < brickColumnCount; c++) {
-        for (let r = 0; r < brickRowCount; r++) {
-            const b = bricks[c][r];
-            if (b.status === 1) {
-                const brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
-                const brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
-                
-                b.x = brickX;
-                b.y = brickY;
-                
-                ctx.beginPath();
-                ctx.rect(brickX, brickY, brickWidth, brickHeight);
-                ctx.fillStyle = b.color; 
-                ctx.fill();
-                ctx.closePath();
-            }
-        }
-    }
+function drawBall() {
+  const x = ball.x, y = ball.y;
+
+  // 光
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = "#ffe56a";
+  ctx.beginPath();
+  ctx.arc(x, y, ball.r * 2.0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 本体
+  const grad = ctx.createRadialGradient(x - 4, y - 4, 2, x, y, ball.r);
+  grad.addColorStop(0, "#ffffff");
+  grad.addColorStop(1, "#a7b0d9");
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, ball.r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 反射
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(x - 3, y - 3, ball.r * 0.28, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
-function handleNG() {
-    ngCount++;
-    NG_COUNT_SPAN.textContent = ngCount;
-    
-    if (ngCount >= MAX_NG) {
-        gameOver(false);
-    } else {
-        clearInterval(gameLoopInterval);
-        MESSAGE_P.textContent = `**球を逸らしました！** NG ${ngCount}/${MAX_NG}`;
-        MESSAGE_P.classList.add('game-over');
-        isPlaying = false;
-        
-        setTimeout(() => {
-            if (ngCount < MAX_NG) {
-                resetBallAndPaddle(); 
-                isPlaying = true;
-                gameLoopInterval = setInterval(draw, 10);
-                MESSAGE_P.textContent = "ゲーム中...";
-                MESSAGE_P.classList.remove('game-over');
-            }
-        }, 1500);
-    }
+function drawFrame() {
+  ctx.save();
+  ctx.strokeStyle = "rgba(124,255,225,.18)";
+  ctx.lineWidth = 3;
+  roundRectStroke(2, 2, canvas.width - 4, canvas.height - 4, 18);
+  ctx.restore();
 }
 
-function gameOver(win) {
-    clearInterval(gameLoopInterval);
-    isPlaying = false;
-    if (win) {
-        MESSAGE_P.textContent = `**🏆 全ブロック破壊！ゲームクリア！** 最終スコア: ${score}`;
-        MESSAGE_P.classList.remove('game-over');
-        MESSAGE_P.style.color = 'green';
-    } else {
-        MESSAGE_P.textContent = `**ゲームオーバー！** 😭 NG回数が${MAX_NG}回に達しました。最終スコア: ${score}`;
-        MESSAGE_P.classList.add('game-over');
-    }
-}
+/** ===== 終了系 ===== */
+function gameOver() {
+  isPlaying = false;
+  stopLoop();
 
-// 初期状態の描画
-initBricks();
-draw();
-MESSAGE_P.textContent = "スタートボタンを押してください";
+  st
