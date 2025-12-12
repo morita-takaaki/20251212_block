@@ -487,4 +487,104 @@ function gameOver() {
   isPlaying = false;
   stopLoop();
 
-  st
+  startBtn.disabled = false;
+  speedSelect.disabled = false;
+
+  statusEl.textContent = "ゲームオーバー";
+  showOverlay("GAME OVER", `スコア：${score} / STARTで最初から`, false);
+}
+
+function gameClear() {
+  isPlaying = false;
+  stopLoop();
+
+  startBtn.disabled = false;
+  speedSelect.disabled = false;
+
+  statusEl.textContent = "クリア";
+  showOverlay("CLEAR!", `おめでとう！ スコア：${score} / STARTで再挑戦`, true);
+}
+
+/** ===== UI ===== */
+function updateUI() {
+  scoreEl.textContent = String(score);
+  ngEl.textContent = String(ngCount);
+  leftEl.textContent = String(blocks.filter(b => b.alive).length);
+}
+
+/** ===== Overlay ===== */
+function showOverlay(title, text, good) {
+  overlay.hidden = false;
+  overlayTitle.textContent = title;
+  overlayText.textContent = text;
+  overlayTitle.style.color = good ? "#e8ecff" : "#ffb3b3";
+}
+
+function flashOverlay(title, text, ms) {
+  overlay.hidden = false;
+  overlayTitle.textContent = title;
+  overlayText.textContent = text;
+  overlayTitle.style.color = "#ffe56a";
+
+  window.setTimeout(() => {
+    if (isPlaying) overlay.hidden = true;
+  }, ms);
+}
+
+/** ===== 衝突判定：円 vs 矩形 ===== */
+function circleRectHit(cx, cy, r, rx, ry, rw, rh) {
+  // 円の中心から矩形の最近点を求める
+  const nx = clamp(cx, rx, rx + rw);
+  const ny = clamp(cy, ry, ry + rh);
+
+  const dx = cx - nx;
+  const dy = cy - ny;
+  return (dx * dx + dy * dy) <= (r * r);
+}
+
+/** ===== 図形 ===== */
+function roundRectFill(x, y, w, h, r) {
+  ctx.beginPath();
+  roundedRectPath(x, y, w, h, r);
+  ctx.fill();
+}
+function roundRectStroke(x, y, w, h, r) {
+  ctx.beginPath();
+  roundedRectPath(x, y, w, h, r);
+  ctx.stroke();
+}
+function roundedRectPath(x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+/** ===== utils ===== */
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+/** ===== 入力イベント ===== */
+window.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft") keys.left = true;
+  if (e.key === "ArrowRight") keys.right = true;
+});
+window.addEventListener("keyup", (e) => {
+  if (e.key === "ArrowLeft") keys.left = false;
+  if (e.key === "ArrowRight") keys.right = false;
+});
+
+speedSelect.addEventListener("change", () => {
+  setSpeed(speedSelect.value);
+  draw();
+});
+
+startBtn.addEventListener("click", () => startGame());
+resetBtn.addEventListener("click", () => resetAll());
+
+/** 起動 */
+init();
