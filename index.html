@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MORITAのブロック崩しゲーム</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>🧱 MORITAのブロック崩しゲーム 🧱</h1>
+
+    <div class="controls">
+        <div class="settings">
+            <label for="speed">**球の速度:**</label>
+            <input type="radio" id="speed_fast" name="speed" value="7.5">
+            <label for="speed_fast">高速</label>
+            <input type="radio" id="speed_normal" name="speed" value="5.0" checked>
+            <label for="speed_normal">並み</label>
+            <input type="radio" id="speed_slow" name="speed" value="3.0">
+            <label for="speed_slow">遅い</label>
+        </div>
+
+        <button id="start-button">**▶️ ゲームスタート/再開**</button>
+    </div>
+
+    <div class="score-board">
+        <p>スコア: <span id="score">0</span></p>
+        <p>NG回数: <span id="ng-count">0</span> / 10</p>
+        <p class="message" id="game-message">スタートボタンを押してください</p>
+    </div>
+
+    <canvas id="breakout-canvas" width="480" height="320"></canvas>
+    
+    <script src="script.js"></script>
+</body>
+</html>

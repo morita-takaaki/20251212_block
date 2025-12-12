@@ -1,0 +1,57 @@
+body {
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f0f0f0;
+    margin: 0;
+    padding: 20px;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.controls, .score-board {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #fff;
+    text-align: center;
+    width: 450px; 
+}
+
+.settings label, .settings input {
+    margin-right: 10px;
+}
+
+#start-button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+#breakout-canvas {
+    background: #000000;
+    border: 5px solid #333;
+    display: block;
+    margin: 0 auto;
+}
+
+.message {
+    font-weight: bold;
+    color: blue;
+    margin-top: 10px;
+}
+
+.game-over {
+    color: red;
+    font-size: 20px;
+}
