@@ -17,8 +17,8 @@ const MAX_NG = 10;
 const ballRadius = 6;
 let x = canvasWidth / 2;
 let y = canvasHeight - 30;
-let dx = 5; // x方向の移動速度（初期値）
-let dy = -5; // y方向の移動速度（初期値）
+let dx = 1.7; // **変更**: x方向の移動速度の初期値 (並み: 1.7)
+let dy = -1.7; // **変更**: y方向の移動速度の初期値 (並み: -1.7)
 
 // --- ラケットの設定 ---
 const paddleHeight = 8;
@@ -36,14 +36,14 @@ const brickPadding = 5;
 const brickOffsetTop = 30;
 const brickOffsetLeft = 15;
 
-let bricks = []; // ブロックの状態を保持する二次元配列
+let bricks = []; 
 
 // --- ゲーム変数 ---
 let score = 0;
 let ngCount = 0;
 let gameLoopInterval = null;
 let isPlaying = false;
-let initialSpeed = 5.0; // 初期速度（並み）
+let initialSpeed = 1.7; // **変更**: 初期速度（並み）を1.7に設定
 
 // --- イベントリスナー ---
 
@@ -73,7 +73,6 @@ function initBricks() {
     bricks = [];
     for (let c = 0; c < brickColumnCount; c++) {
         bricks[c] = [];
-        // ブロックの行ごとにランダムな色を設定
         const randomColor = getRandomColor(); 
         for (let r = 0; r < brickRowCount; r++) {
             bricks[c][r] = { x: 0, y: 0, status: 1, color: randomColor };
@@ -82,7 +81,6 @@ function initBricks() {
 }
 
 function getRandomColor() {
-    // カラフルなブロックのためのランダムな色
     const letters = '0123456789ABCDEF';
     let color = '#';
     for (let i = 0; i < 6; i++) {
@@ -94,7 +92,7 @@ function getRandomColor() {
 function initializeGame() {
     // 速度設定の取得
     const selectedSpeed = document.querySelector('input[name="speed"]:checked');
-    initialSpeed = parseFloat(selectedSpeed.value);
+    initialSpeed = parseFloat(selectedSpeed.value); // **HTMLの新しい値を読み込む**
     
     score = 0;
     ngCount = 0;
@@ -114,7 +112,7 @@ function resetBallAndPaddle() {
     // Y方向の速度は常に負（上向き）
     dy = -initialSpeed;
     // X方向はランダムに左右どちらかに振る
-    dx = (Math.random() < 0.5 ? 1 : -1) * initialSpeed * 0.7; // X方向は少し遅くする
+    dx = (Math.random() < 0.5 ? 1 : -1) * initialSpeed * 0.7; 
     
     paddleX = (canvasWidth - paddleWidth) / 2;
 }
@@ -128,43 +126,8 @@ function startGame() {
     gameLoopInterval = setInterval(draw, 10); // 10ms (100FPS相当)で描画・更新
 }
 
-// --- 描画関数 ---
-
-function drawBall() {
-    ctx.beginPath();
-    ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
-    ctx.fillStyle = "#FFFFFF"; // 球は白
-    ctx.fill();
-    ctx.closePath();
-}
-
-function drawPaddle() {
-    ctx.beginPath();
-    ctx.rect(paddleX, canvasHeight - paddleHeight, paddleWidth, paddleHeight);
-    ctx.fillStyle = "#0095DD"; // ラケットは青
-    ctx.fill();
-    ctx.closePath();
-}
-
-function drawBricks() {
-    for (let c = 0; c < brickColumnCount; c++) {
-        for (let r = 0; r < brickRowCount; r++) {
-            if (bricks[c][r].status === 1) {
-                const brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
-                const brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
-                
-                bricks[c][r].x = brickX;
-                bricks[c][r].y = brickY;
-                
-                ctx.beginPath();
-                ctx.rect(brickX, brickY, brickWidth, brickHeight);
-                ctx.fillStyle = bricks[c][r].color; // ランダムな色を使用
-                ctx.fill();
-                ctx.closePath();
-            }
-        }
-    }
-}
+// --- 描画関数 (省略) ---
+// drawBall, drawPaddle, drawBricks は変更なし
 
 // --- 衝突判定 ---
 
@@ -173,16 +136,14 @@ function collisionDetection() {
         for (let r = 0; r < brickRowCount; r++) {
             const b = bricks[c][r];
             if (b.status === 1) {
-                // 球がブロックの範囲内に入ったか
                 if (x + ballRadius > b.x && x - ballRadius < b.x + brickWidth && 
                     y + ballRadius > b.y && y - ballRadius < b.y + brickHeight) 
                 {
-                    dy = -dy; // Y軸を反転
-                    b.status = 0; // ブロックを消す
+                    dy = -dy; 
+                    b.status = 0; 
                     score++;
                     SCORE_SPAN.textContent = score;
 
-                    // 全てのブロックを破壊したかチェック
                     if (score === brickRowCount * brickColumnCount) {
                         gameOver(true);
                     }
@@ -197,7 +158,6 @@ function collisionDetection() {
 function draw() {
     if (!isPlaying) return;
 
-    // 画面をクリア
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     drawBricks();
@@ -207,20 +167,18 @@ function draw() {
 
     // 1. 壁との衝突
     if (x + dx > canvasWidth - ballRadius || x + dx < ballRadius) {
-        dx = -dx; // 左右の壁
+        dx = -dx; 
     }
     if (y + dy < ballRadius) {
-        dy = -dy; // 天井
+        dy = -dy; 
     } 
     
     // 2. ラケットとの衝突 (下側の衝突)
     else if (y + dy > canvasHeight - ballRadius - paddleHeight) {
-        // 球がラケットの範囲内にあるか
         if (x > paddleX && x < paddleX + paddleWidth) {
-            // ラケットのどこに当たったかに応じてX方向の反射角度を変える
             const relativeIntersectX = (x - (paddleX + paddleWidth / 2));
-            dx = relativeIntersectX * 0.15; // 速度の調整（0.15は係数）
-            dy = -dy; // 上方向に反射
+            dx = relativeIntersectX * 0.15; // 角度調整の係数は維持
+            dy = -dy; 
         } 
         // 3. NG判定 (球が画面下部に落ちた)
         else {
@@ -229,7 +187,7 @@ function draw() {
         }
     }
 
-    // 4. ラケットの移動
+    // 4. ラケットの移動 (速度は変更なし)
     if (rightPressed && paddleX < canvasWidth - paddleWidth) {
         paddleX += 7;
     } else if (leftPressed && paddleX > 0) {
@@ -241,7 +199,51 @@ function draw() {
     y += dy;
 }
 
-// --- NG/ゲームオーバー処理 ---
+// --- NG/ゲームオーバー処理 (省略) ---
+// handleNG, gameOver は変更なし
+// ...
+
+// drawBall, drawPaddle, drawBricks, handleNG, gameOver, keyDownHandler, keyUpHandler, getRandomColor, isSnake, collisionDetection の定義が続く
+
+// 省略された関数の定義を補完します。
+// （前回提供したコードと実質的な変更はありませんが、完全なコードを提供するために再度記述します。）
+
+function drawBall() {
+    ctx.beginPath();
+    ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+    ctx.fillStyle = "#FFFFFF"; 
+    ctx.fill();
+    ctx.closePath();
+}
+
+function drawPaddle() {
+    ctx.beginPath();
+    ctx.rect(paddleX, canvasHeight - paddleHeight, paddleWidth, paddleHeight);
+    ctx.fillStyle = "#0095DD"; 
+    ctx.fill();
+    ctx.closePath();
+}
+
+function drawBricks() {
+    for (let c = 0; c < brickColumnCount; c++) {
+        for (let r = 0; r < brickRowCount; r++) {
+            const b = bricks[c][r];
+            if (b.status === 1) {
+                const brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+                const brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                
+                b.x = brickX;
+                b.y = brickY;
+                
+                ctx.beginPath();
+                ctx.rect(brickX, brickY, brickWidth, brickHeight);
+                ctx.fillStyle = b.color; 
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+    }
+}
 
 function handleNG() {
     ngCount++;
@@ -250,16 +252,14 @@ function handleNG() {
     if (ngCount >= MAX_NG) {
         gameOver(false);
     } else {
-        // NGカウントは増えたが、ゲームオーバーではない場合
         clearInterval(gameLoopInterval);
         MESSAGE_P.textContent = `**球を逸らしました！** NG ${ngCount}/${MAX_NG}`;
         MESSAGE_P.classList.add('game-over');
         isPlaying = false;
         
-        // 1.5秒後に自動でリスタート
         setTimeout(() => {
             if (ngCount < MAX_NG) {
-                resetBallAndPaddle(); // 球とラケットの位置をリセット
+                resetBallAndPaddle(); 
                 isPlaying = true;
                 gameLoopInterval = setInterval(draw, 10);
                 MESSAGE_P.textContent = "ゲーム中...";
