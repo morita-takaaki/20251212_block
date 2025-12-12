@@ -32,4 +32,30 @@
           </select>
         </label>
 
-        <button id="startBt
+        <button id="startBtn" class="btn primary">START（再スタート）</button>
+        <button id="resetBtn" class="btn">RESET</button>
+      </div>
+
+      <p class="hint">
+        操作：左右矢印（←→）でラケット移動。球を落とすとNG。<b>NG10回でゲーム終了</b>。ブロックはカラフル！
+      </p>
+    </header>
+
+    <section class="stage">
+      <canvas id="game" width="720" height="480" aria-label="ゲーム画面"></canvas>
+      <div class="overlay" id="overlay" hidden>
+        <div class="overlayCard">
+          <div class="overlayTitle" id="overlayTitle">READY</div>
+          <div class="overlayText" id="overlayText">STARTで開始</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <small>オフラインOK / 3ファイル構成 / Canvasで動作</small>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
