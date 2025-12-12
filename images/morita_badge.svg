@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <defs>
+    <radialGradient id="g" cx="30%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#7cffe1" stop-opacity="1"/>
+      <stop offset="55%" stop-color="#2b63ff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#0b1020" stop-opacity="1"/>
+    </radialGradient>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <circle cx="48" cy="48" r="42" fill="url(#g)" filter="url(#s)"/>
+  <circle cx="48" cy="48" r="41" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2"/>
+  <path d="M26 54 L42 28 L50 44 L70 20 L58 56 L72 56 L52 80 L44 62 Z"
+        fill="rgba(255,255,255,.86)"/>
+  <text x="48" y="86" text-anchor="middle"
+        font-family="system-ui,Segoe UI,sans-serif"
+        font-size="12" font-weight="800" fill="rgba(255,255,255,.75)">MORITA</text>
+</svg>
